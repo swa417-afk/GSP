@@ -1,0 +1,25 @@
+GSP is in pilot-scale development toward formal standardization.
+This repository contains engineering protocol artifacts and supporting technical specifications used for validation, scale-up, and interoperability testing.
+Scope
+
+Included:
+Glass Substrate Protocol (.gsp) files
+GSP Technical Specifications (TECH-SPECS)
+Pilot metadata and validation artifacts
+
+Excluded:
+Certification claims
+Compliance assertions
+Legal or regulatory determinations
+Non-Certification Notice
+Protocols in this repository do not constitute certification, warranty, or compliance claims.
+
+No protocol is “GSP-compliant” until formal standard adoption and certification mechanisms are activated.
+
+Governance Context
+Glass Substrate Protocol (GSP) is being developed with the intent to transition into a certifiable external standard. Governance, certification, and branding are managed separately and are not active at the pilot stage.
+
+Versioning
+All .gsp files are versioned and immutable once tagged
+Git LFS is mandatory for protocol files
+Pilot releases are tagged per tool and lot
