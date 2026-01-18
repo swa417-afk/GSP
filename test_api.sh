@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e  # Exit on any error
+
 echo "Testing GSP Backend API..."
 echo ""
 
@@ -6,29 +8,33 @@ BASE_URL="http://localhost:4000"
 
 # 1. Health Check
 echo "1. Testing /health endpoint..."
-curl -s $BASE_URL/health | jq .
+curl -s "$BASE_URL/health" | jq .
 echo ""
 
 # 2. Register User
 echo "2. Testing user registration..."
-REGISTER_RESPONSE=$(curl -s -X POST $BASE_URL/api/auth/register \
+REGISTER_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"testpass123"}')
-echo $REGISTER_RESPONSE | jq .
+echo "$REGISTER_RESPONSE" | jq .
 echo ""
 
 # 3. Login
 echo "3. Testing user login..."
-LOGIN_RESPONSE=$(curl -s -X POST $BASE_URL/api/auth/login \
+LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"testpass123"}')
-TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.token')
-echo $LOGIN_RESPONSE | jq .
+TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token')
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo "Error: Failed to extract token from login response"
+  exit 1
+fi
+echo "$LOGIN_RESPONSE" | jq .
 echo ""
 
 # 4. Submit GSP Receipt
 echo "4. Testing GSP receipt submission..."
-SUBMIT_RESPONSE=$(curl -s -X POST $BASE_URL/api/gsp/submit \
+SUBMIT_RESPONSE=$(curl -s -X POST "$BASE_URL/api/gsp/submit" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -37,19 +43,23 @@ SUBMIT_RESPONSE=$(curl -s -X POST $BASE_URL/api/gsp/submit \
     "outputHash": "xyz789hash",
     "policyId": "policy-001"
   }')
-RECEIPT_ID=$(echo $SUBMIT_RESPONSE | jq -r '.receiptId')
-echo $SUBMIT_RESPONSE | jq .
+RECEIPT_ID=$(echo "$SUBMIT_RESPONSE" | jq -r '.receiptId')
+if [ -z "$RECEIPT_ID" ] || [ "$RECEIPT_ID" = "null" ]; then
+  echo "Error: Failed to extract receiptId from submit response"
+  exit 1
+fi
+echo "$SUBMIT_RESPONSE" | jq .
 echo ""
 
 # 5. Get Receipt
 echo "5. Testing receipt retrieval..."
-curl -s $BASE_URL/api/gsp/receipt/$RECEIPT_ID \
+curl -s "$BASE_URL/api/gsp/receipt/$RECEIPT_ID" \
   -H "Authorization: Bearer $TOKEN" | jq .
 echo ""
 
 # 6. List Receipts
 echo "6. Testing receipts list..."
-curl -s $BASE_URL/api/gsp/receipts \
+curl -s "$BASE_URL/api/gsp/receipts" \
   -H "Authorization: Bearer $TOKEN" | jq .
 echo ""
 
