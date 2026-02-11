@@ -8,6 +8,8 @@ set -euo pipefail
 REGION="${REGION:-us-east-1}"
 BUCKET_NAME="${BUCKET_NAME:-glass-substrate-ledger}"
 KMS_ALIAS="${KMS_ALIAS:-alias/glass-substrate-key}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="${OUTPUT_DIR:-${SCRIPT_DIR}/..}"
 
 log() {
   echo "[gsp-setup] $*"
@@ -79,15 +81,15 @@ SUMMARY_FILE="setup-summary.txt"
   echo "Alias: ${KMS_ALIAS}"
   echo "Region: ${REGION}"
   aws s3api get-object-lock-configuration --bucket "${BUCKET_NAME}"
-} >"${SUMMARY_FILE}"
+} >"${OUTPUT_DIR}/${SUMMARY_FILE}"
 
-cat > restore_env.sh <<ENV
+cat > "${OUTPUT_DIR}/restore_env.sh" <<ENV
 export REGION=${REGION}
 export BUCKET_NAME=${BUCKET_NAME}
 export KMS_KEY_ID=${KMS_KEY_ID}
 export KMS_ALIAS=${KMS_ALIAS}
 ENV
-chmod +x restore_env.sh
+chmod +x "${OUTPUT_DIR}/restore_env.sh"
 
 log "Provisioning complete"
-log "Summary written to ${SUMMARY_FILE}; env restore script written to restore_env.sh"
+log "Summary written to ${OUTPUT_DIR}/${SUMMARY_FILE}; env restore script written to ${OUTPUT_DIR}/restore_env.sh"

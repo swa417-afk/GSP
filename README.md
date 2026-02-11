@@ -24,6 +24,16 @@ KMS_ALIAS=alias/glass-substrate-key \
 ./scripts/provision_institutional_bucket.sh
 ```
 
+By default, output files are written to the repository root:
+- `setup-summary.txt`
+- `restore_env.sh`
+
+If you want those files in a different location, set `OUTPUT_DIR`:
+
+```bash
+OUTPUT_DIR=/tmp ./scripts/provision_institutional_bucket.sh
+```
+
 ### CloudShell quick start (recommended)
 
 If your shell starts in `~/` (for example `/home/cloudshell-user`), clone the repo first so the script exists locally:
