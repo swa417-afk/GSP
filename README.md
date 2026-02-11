@@ -46,6 +46,25 @@ cd GSP
 
 > Note: `aws s3 sync s3://glass-substrate-ledger .` syncs bucket objects, **not** this Git repository. If you only ran `aws s3 sync`, the `scripts/` folder from this repo may not exist in your current directory.
 
+### Applying patch/diff snippets safely
+
+If you receive a snippet that starts with lines like `diff --git`, `index ...`, `--- a/...`, `+++ b/...`, or `@@ ...`, **do not paste those lines directly into bash**. Those are patch metadata, not shell commands.
+
+Use this flow instead:
+
+```bash
+# 1) Enter the repository first
+cd /workspace/GSP
+
+# 2) Confirm you're in a git repo
+git rev-parse --show-toplevel
+
+# 3) Save/apply patch content via git apply (example)
+git apply --3way your.patch
+```
+
+If you see `fatal: not a git repository`, you are in the wrong directory. `cd` into the repo root first.
+
 ### Common path mistake
 
 `provision_institutional_bucket.sh` is a **file**, not a directory. If you see an error like:
