@@ -85,3 +85,32 @@ cd scripts
 ```
 
 The script handles the `us-east-1` create-bucket behavior (no `LocationConstraint`) and reuses an existing KMS alias when present.
+
+## AWS VPC environment bootstrap
+
+Use `scripts/create_vpc_environment.sh` to provision a baseline VPC environment with:
+- 1 VPC
+- 2 public subnets + 2 private subnets (across 2 AZs)
+- Internet Gateway
+- Public and private route tables
+- Default security group for the environment
+- Optional NAT gateway (disabled by default to avoid cost)
+
+Example:
+
+```bash
+cd /workspace/GSP
+REGION=us-east-1 ENV_NAME=gsp-dev ./scripts/create_vpc_environment.sh
+```
+
+Enable NAT gateway (incurs AWS charges):
+
+```bash
+ENABLE_NAT_GATEWAY=true REGION=us-east-1 ENV_NAME=gsp-dev ./scripts/create_vpc_environment.sh
+```
+
+Outputs:
+- `vpc-environment-summary.json`
+- `restore_vpc_env.sh`
+
+Set `OUTPUT_DIR` to write outputs elsewhere.
