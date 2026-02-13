@@ -187,7 +187,7 @@ Based on `/metadata/Status`:
 
 ## Contributors
 
-- swa417-afk (Owner)
+- swa417-afk (Author)
 - Copilot (Development assistance)
 
 ## License & Legal
