@@ -3,12 +3,17 @@ node_modules/
 package-lock.json
 yarn.lock
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Database
 *.sqlite
 *.db
 
-# Environment variables (keeping .env in repo as per problem statement)
-# .env
+# Environment variables
+.env
 
 # Build artifacts
 dist/
