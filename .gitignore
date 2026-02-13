@@ -3,6 +3,11 @@ node_modules/
 package-lock.json
 yarn.lock
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Database
 *.sqlite
 *.db
