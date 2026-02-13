@@ -17,7 +17,7 @@ class GSPGovernanceLogger:
     def log_event(self, event_type: str, payload: Dict[str, Any]):
         log_entry = {
             "event_id": str(uuid.uuid4()),
-            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "event_type": event_type,
             "payload": payload
         }
@@ -57,7 +57,7 @@ class ModelRegistry:
             "name": name,
             "version": version,
             "approved": approved,
-            "registered_at": datetime.datetime.utcnow().isoformat()
+            "registered_at": datetime.datetime.now(datetime.UTC).isoformat()
         }
         return model_id
 
@@ -115,6 +115,7 @@ class AIRuntime:
 def run_with_human_approval(runtime, model_id, input_payload):
     # Simulated human approval
     request_id = str(uuid.uuid4())
+    runtime.logger.log_event(
         "APPROVAL_GRANTED",
         {
             "request_id": request_id,
@@ -130,23 +131,6 @@ def run_with_human_approval(runtime, model_id, input_payload):
     )
 
     return result
-        # Simulated human approval
-# Simulated human approval
-runtime.logger.log_event(
-    "APPROVAL_GRANTED",
-    {
-        "request_id": request_id,
-        "approver": "governance_officer",
-    }
-)
-        # Resume after approval
-return runtime.run_inference(
-model_id=model_id,
-input_data=input_payload,
-risk_level="low"
-)
-
-return result
 
 
 # -----------------------------

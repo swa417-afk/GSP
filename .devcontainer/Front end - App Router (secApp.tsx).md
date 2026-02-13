@@ -947,16 +947,12 @@ app.get("/api/gsp/receipts", requireAuth, (req, res) => {
 });  
   
 app.listen(PORT, () => {  
-  console.log(‘${APP_NAME} backend running on http://0.0.0.0:${PORT}`);  
+  console.log(`${APP_NAME} backend running on http://0.0.0.0:${PORT}`);  
 });  
   
 # ++==Backend .env==++  
   
 PORT=4000  
-DB_PATH=./gsp.sqlite  
-JWT_SECRET=your-super-secret-key-change-this  
-APP_NAME=GSP Reference App  
-ATTESTATION_MODE=simulated PORT=4000  
 DB_PATH=./gsp.sqlite  
 JWT_SECRET=your-super-secret-key-change-this  
 APP_NAME=GSP Reference App  

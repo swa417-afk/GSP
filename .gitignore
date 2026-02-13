@@ -7,8 +7,8 @@ yarn.lock
 *.sqlite
 *.db
 
-# Environment variables (keeping .env in repo as per problem statement)
-# .env
+# Environment variables
+.env
 
 # Build artifacts
 dist/
