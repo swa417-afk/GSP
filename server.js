@@ -210,7 +210,7 @@ app.get("/api/gsp/receipt/:id", requireAuth, (req, res) => {
         attestation = JSON.parse(row.attestation);
       } catch (parseErr) {
         console.error(`Failed to parse attestation for receipt ${row.id}:`, parseErr);
-        attestation = { error: "Invalid attestation format", raw: row.attestation };
+        attestation = { error: "Invalid attestation format" };
       }
 
       return res.json({
@@ -243,7 +243,7 @@ app.get("/api/gsp/receipts", requireAuth, (req, res) => {
           attestation = JSON.parse(row.attestation);
         } catch (parseErr) {
           console.error(`Failed to parse attestation for receipt ${row.id}:`, parseErr);
-          attestation = { error: "Invalid attestation format", raw: row.attestation };
+          attestation = { error: "Invalid attestation format" };
         }
         
         return {
