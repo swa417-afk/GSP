@@ -1,0 +1,14 @@
+{
+  "chain": [
+    {
+      "index": 0,
+      "timestamp": "2024-01-01T00:00:00Z",
+      "payload": {
+        "event": "genesis",
+        "description": "Initialized demo hash chain storage"
+      },
+      "prev_hash": null,
+      "hash": "80bf4f99063cf8413f800bff5ae8c33ed4ee05b241d520c5ef5174ac48309260"
+    }
+  ]
+}
