@@ -1,0 +1,39 @@
+[
+  {
+    "index": 0,
+    "timestamp": "2026-02-10T00:00:00Z",
+    "actor": "system",
+    "action": "init-ledger",
+    "payload": {
+      "note": "Genesis event for demo log"
+    },
+    "prev_hash": null,
+    "hash": "ef5083985a57369968771841f517fb673231a1f841a9a2c4638b5560e478c475"
+  },
+  {
+    "index": 1,
+    "timestamp": "2026-02-10T00:01:00Z",
+    "actor": "auditor",
+    "action": "ingest-policy",
+    "payload": {
+      "policy_id": "pilot-1",
+      "version": "1.2"
+    },
+    "prev_hash": "ef5083985a57369968771841f517fb673231a1f841a9a2c4638b5560e478c475",
+    "hash": "46c29e0c74abe9a45395b302adf870e86912fb4c9c1f039adb0f0e50ec9fc942"
+  },
+  {
+    "index": 2,
+    "timestamp": "2026-02-10T00:02:00Z",
+    "actor": "pipeline",
+    "action": "record-attestation",
+    "payload": {
+      "model_id": "gpt-4",
+      "input_hash": "abc123",
+      "output_hash": "xyz789",
+      "policy_id": "pilot-1"
+    },
+    "prev_hash": "46c29e0c74abe9a45395b302adf870e86912fb4c9c1f039adb0f0e50ec9fc942",
+    "hash": "299f2ef9dc3c0a19938a7af138407c57f5b412b603a2e7fb3bdc18d38773e733"
+  }
+]
