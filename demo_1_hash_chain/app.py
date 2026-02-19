@@ -1,94 +1,115 @@
-import argparse
 import hashlib
 import json
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
+import os
+from datetime import datetime, timezone
+from uuid import uuid4
+from typing import Any, Dict, List, Optional
 
 
-STORAGE_PATH = Path(__file__).with_name("storage.json")
+STORAGE_FILE = os.path.join(os.path.dirname(__file__), "storage.json")
 
 
-def load_chain() -> List[Dict[str, Any]]:
-    if not STORAGE_PATH.exists():
+def load_storage() -> List[Dict[str, Any]]:
+    if not os.path.exists(STORAGE_FILE):
         return []
 
-    with STORAGE_PATH.open("r", encoding="utf-8") as handle:
+    with open(STORAGE_FILE, "r", encoding="utf-8") as handle:
         data = json.load(handle)
 
-    if isinstance(data, dict):
-        chain = data.get("chain", [])
-        return chain if isinstance(chain, list) else []
+    if isinstance(data, dict) and isinstance(data.get("chain"), list):
+        return data["chain"]
 
     return data if isinstance(data, list) else []
 
 
-def save_chain(chain: List[Dict[str, Any]]) -> None:
-    STORAGE_PATH.write_text(json.dumps({"chain": chain}, indent=2), encoding="utf-8")
+def save_storage(data: List[Dict[str, Any]]) -> None:
+    with open(STORAGE_FILE, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2)
 
 
-def compute_hash(record: Dict[str, Any]) -> str:
-    content = {key: record.get(key) for key in ("index", "timestamp", "payload", "prev_hash")}
-    serialized = json.dumps(content, sort_keys=True).encode("utf-8")
-    return hashlib.sha256(serialized).hexdigest()
+def compute_hash(payload: Dict[str, Any]) -> str:
+    payload_string = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(payload_string).hexdigest()
 
 
-def append_entry(message: str) -> Dict[str, Any]:
-    chain = load_chain()
-    prev_hash = chain[-1]["hash"] if chain else None
-    record: Dict[str, Any] = {
-        "index": len(chain),
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "payload": {"message": message},
-        "prev_hash": prev_hash,
+def create_attestation(user_id: str, action: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    if metadata is None:
+        metadata = {}
+
+    chain = load_storage()
+    previous_hash = chain[-1]["hash"] if chain else None
+
+    attestation: Dict[str, Any] = {
+        "id": str(uuid4()),
+        "issuer": "GSP-Demo",
+        "userId": user_id,
+        "action": action,
+        "metadata": metadata,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "previousHash": previous_hash,
     }
-    record["hash"] = compute_hash(record)
-    chain.append(record)
-    save_chain(chain)
-    return record
+
+    attestation["hash"] = compute_hash(attestation)
+
+    chain.append(attestation)
+    save_storage(chain)
+
+    print("Attestation created:")
+    print(json.dumps(attestation, indent=2))
 
 
-def verify_chain(chain: List[Dict[str, Any]]) -> Tuple[bool, str]:
-    for idx, record in enumerate(chain):
-        expected_prev = chain[idx - 1]["hash"] if idx > 0 else None
-        if record.get("prev_hash") != expected_prev:
-            return False, f"Chain break at index {idx}: previous hash mismatch"
+def verify_chain() -> bool:
+    chain = load_storage()
 
-        if compute_hash(record) != record.get("hash"):
-            return False, f"Chain break at index {idx}: hash does not match contents"
+    for idx, att in enumerate(chain):
+        stored_hash = att.get("hash")
+        payload = att.copy()
+        payload.pop("hash", None)
 
-    return True, f"Chain valid with {len(chain)} entr{'y' if len(chain) == 1 else 'ies'}"
+        computed_hash = compute_hash(payload)
+
+        if stored_hash != computed_hash:
+            print(f"Tampering detected at index {idx}")
+            return False
+
+        if idx > 0:
+            if att.get("previousHash") != chain[idx - 1].get("hash"):
+                print(f"Broken chain link at index {idx}")
+                return False
+
+    print("Chain is valid.")
+    return True
 
 
-def show_chain(chain: List[Dict[str, Any]]) -> str:
-    return json.dumps(chain, indent=2)
+def reconstruct() -> None:
+    chain = load_storage()
+    print("Reconstruction:")
+    for att in chain:
+        print(f"{att.get('timestamp')} | {att.get('action')} | {str(att.get('hash', ''))[:10]}...")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Minimal hash chain demo (append-only log).")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    while True:
+        print("\n1. Create Attestation")
+        print("2. Verify Chain")
+        print("3. Reconstruct")
+        print("4. Exit")
 
-    add_parser = subparsers.add_parser("add", help="Append a new message to the hash chain.")
-    add_parser.add_argument("message", help="Message payload to record.")
+        choice = input("Select: ")
 
-    subparsers.add_parser("verify", help="Verify the integrity of the stored chain.")
-    subparsers.add_parser("show", help="Print the stored chain.")
+        if choice == "1":
+            user = input("User ID: ")
+            action = input("Action: ")
+            create_attestation(user, action)
 
-    args = parser.parse_args()
-    chain = load_chain()
+        elif choice == "2":
+            verify_chain()
 
-    if args.command == "add":
-        record = append_entry(args.message)
-        print(f"Added entry {record['index']} with hash {record['hash']}")
-        return
+        elif choice == "3":
+            reconstruct()
 
-    if args.command == "verify":
-        ok, message = verify_chain(chain)
-        print(message)
-        return
-
-    if args.command == "show":
-        print(show_chain(chain))
+        elif choice == "4":
+            break
 
 
 if __name__ == "__main__":
