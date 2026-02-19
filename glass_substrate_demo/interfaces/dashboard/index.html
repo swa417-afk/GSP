@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Glass Substrate Demo Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; background: #0b1118; color: #e8edf3; }
+    header { margin-bottom: 16px; }
+    .pill { padding: 6px 10px; border-radius: 12px; background: #162130; border: 1px solid #223249; display: inline-block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { padding: 10px; border-bottom: 1px solid #223249; text-align: left; }
+    th { background: #111827; }
+    .ok { color: #5eead4; }
+    .fail { color: #f87171; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+    .card { background: #111827; padding: 12px; border-radius: 8px; border: 1px solid #223249; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Glass Substrate Demo</h1>
+    <p class="pill">data/sample_events.json</p>
+    <p>Run <code>python -m http.server 8000</code> from <code>glass_substrate_demo</code> and reload this page.</p>
+  </header>
+
+  <div class="grid" id="summary"></div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Timestamp</th>
+        <th>Hash Check</th>
+      </tr>
+    </thead>
+    <tbody id="entries"></tbody>
+  </table>
+
+  <script>
+    const dataPath = "../../data/sample_events.json";
+
+    async function computeHash(entry) {
+      const content = {
+        index: entry.index,
+        timestamp: entry.timestamp,
+        actor: entry.actor,
+        action: entry.action,
+        payload: entry.payload || {},
+        prev_hash: entry.prev_hash ?? null
+      };
+      const encoder = new TextEncoder();
+      const payload = encoder.encode(JSON.stringify(content));
+      const digest = await crypto.subtle.digest("SHA-256", payload);
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function loadData() {
+      const resp = await fetch(dataPath);
+      const entries = await resp.json();
+
+      const tbody = document.getElementById("entries");
+      tbody.innerHTML = "";
+
+      let okCount = 0;
+      for (const entry of entries) {
+        const expected = await computeHash(entry);
+        const hashOk = expected === entry.hash;
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${entry.index}</td>
+          <td>${entry.actor}</td>
+          <td>${entry.action}</td>
+          <td>${entry.timestamp}</td>
+          <td class="${hashOk ? "ok" : "fail"}">${hashOk ? "OK" : "Mismatch"}</td>
+        `;
+        tbody.appendChild(row);
+        if (hashOk) okCount += 1;
+      }
+
+      const perActor = entries.reduce((acc, entry) => {
+        acc[entry.actor] = (acc[entry.actor] || 0) + 1;
+        return acc;
+      }, {});
+
+      const summary = document.getElementById("summary");
+      summary.innerHTML = `
+        <div class="card"><strong>Total events</strong><div>${entries.length}</div></div>
+        <div class="card"><strong>Hash verified</strong><div class="${okCount === entries.length ? "ok" : "fail"}">${okCount}/${entries.length}</div></div>
+        <div class="card"><strong>Actors</strong><div>${Object.entries(perActor).map(([actor, count]) => `${actor}: ${count}`).join(", ")}</div></div>
+      `;
+    }
+
+    loadData().catch(err => {
+      document.getElementById("entries").innerHTML = `<tr><td colspan="5" class="fail">${err}</td></tr>`;
+    });
+  </script>
+</body>
+</html>
