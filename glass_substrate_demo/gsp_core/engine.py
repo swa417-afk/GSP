@@ -1,62 +1,58 @@
-import json
-import hashlib
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
-from .storage import append_entry, load_entries, save_entries, DEFAULT_DATA_PATH
-
-
-def compute_hash(entry: Mapping[str, Any]) -> str:
-    content = {
-        "index": entry.get("index"),
-        "timestamp": entry.get("timestamp"),
-        "actor": entry.get("actor"),
-        "action": entry.get("action"),
-        "payload": entry.get("payload", {}),
-        "prev_hash": entry.get("prev_hash"),
-    }
-    payload = json.dumps(content, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+from .storage import Storage
+from .verification import Verification
 
 
-def ensure_genesis(path: str = str(DEFAULT_DATA_PATH)) -> List[Dict[str, Any]]:
-    entries = load_entries(path)
-    if entries:
-        return entries
+class Engine:
+    """Coordinates record creation and persistence for the demo ledger."""
 
-    genesis = {
-        "index": 0,
-        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "actor": "system",
-        "action": "init-ledger",
-        "payload": {"note": "Genesis event for demo log"},
-        "prev_hash": None,
-    }
-    genesis["hash"] = compute_hash(genesis)
-    save_entries([genesis], path)
-    return [genesis]
+    def __init__(self, storage: Storage | None = None, verifier: Verification | None = None) -> None:
+        self.storage = storage or Storage()
+        self.verifier = verifier or Verification()
 
+    def submit(
+        self,
+        *,
+        model_id: str,
+        input_hash: str,
+        output_hash: str,
+        policy_id: str,
+        actor: str = "system",
+        notes: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a new chained record and persist it."""
+        state = self.storage.load()
+        records: List[Dict[str, Any]] = state.get("records", [])
+        prev_hash = records[-1]["record_hash"] if records else None
 
-def record_event(
-    actor: str,
-    action: str,
-    payload: Mapping[str, Any] | None = None,
-    path: str = str(DEFAULT_DATA_PATH),
-) -> Dict[str, Any]:
-    entries = ensure_genesis(path)
-    last = entries[-1]
-    index = int(last.get("index", len(entries) - 1)) + 1
-    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        record = {
+            "record_id": str(uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "actor": actor,
+            "model_id": model_id,
+            "input_hash": input_hash,
+            "output_hash": output_hash,
+            "policy_id": policy_id,
+            "notes": notes or "",
+            "metadata": metadata or {},
+            "prev_hash": prev_hash,
+        }
 
-    event = {
-        "index": index,
-        "timestamp": timestamp,
-        "actor": actor,
-        "action": action,
-        "payload": payload or {},
-        "prev_hash": last.get("hash"),
-    }
-    event["hash"] = compute_hash(event)
+        record["record_hash"] = self.verifier.calculate_hash(record)
+        self.storage.append(record)
+        return record
 
-    append_entry(event, path)
-    return event
+    def list_records(self) -> List[Dict[str, Any]]:
+        """Return the current set of records."""
+        return self.storage.load().get("records", [])
+
+    def integrity_status(self) -> Dict[str, Any]:
+        records = self.list_records()
+        status, issues = self.verifier.verify_chain(records)
+        return {"ok": status, "issues": issues, "count": len(records)}

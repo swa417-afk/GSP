@@ -1,38 +1,38 @@
-# Glass Substrate Demo Package
+# Glass Substrate Demo
 
-Reference demo showing how to capture, verify, and present Glass Substrate Protocol events using simple JSON artifacts.
+Lightweight Python demo that simulates a glass-substrate style ledger with simple integrity verification, a terminal interface, and a minimal web dashboard.
 
 ## Layout
-- `gsp_core/` — core modules for storage, event engine, verification, and timeline reconstruction
-- `interfaces/` — terminal CLI, web dashboard, and a notebook stub
-- `data/sample_events.json` — seeded event log (append-only hash chain)
-- `main.py` — quick entry point to append a sample record and print a summary
-- `requirements.txt` — standard-library only demo dependencies
-
-## Quick Start
-```bash
-# From repo root
-PYTHONPATH=. python glass_substrate_demo/main.py
+```
+glass_substrate_demo/
+├── gsp_core/           # Engine, storage, verification, reconstruction helpers
+├── interfaces/         # Terminal CLI, notebook starter, web dashboard
+├── visualizations/     # Small ASCII chart utilities
+├── data/storage.json   # JSON-backed ledger state
+├── main.py             # Entrypoint for CLI or web dashboard
+└── requirements.txt    # Demo dependencies
 ```
 
-### Terminal App
-```bash
-PYTHONPATH=. python glass_substrate_demo/interfaces/cli.py show
-PYTHONPATH=. python glass_substrate_demo/interfaces/cli.py append --actor pilot --action "ingest-policy" --payload '{"policy_id":"pilot-1"}'
-PYTHONPATH=. python glass_substrate_demo/interfaces/cli.py verify
-```
-
-### Web Dashboard
+## Quick start
 ```bash
 cd glass_substrate_demo
-python -m http.server 8000
-# Open http://localhost:8000/interfaces/dashboard/index.html
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Terminal app
+python main.py list
+python main.py add --model demo --input-hash in123 --output-hash out456 --policy policy-001
+python main.py verify
+
+# Web dashboard
+python main.py --web
+# visit http://localhost:5055
 ```
 
-### Notebook Stub
-Open `interfaces/notebook_stub.ipynb` in Jupyter (with `PYTHONPATH` including repo root) to experiment with the core helpers.
+## Notebook
+Open `interfaces/notebook_demo.ipynb` to run the same flow interactively. The notebook clears the demo storage and writes two sample records before printing the status.
 
 ## Notes
-- Event data is stored as newline-free JSON for easy diffing.
-- Hashes are recomputed deterministically from each record body; verification fails fast if anything is edited.
-- The demo avoids external dependencies to stay lightweight for pilots and workshops.
+- Records are stored in `data/storage.json` and chained with a simple hash of their contents.
+- The terminal `summary` command prints an ASCII bar chart of records per policy.
+- The web dashboard offers a compact HTML view and API endpoints for listing and adding records.
