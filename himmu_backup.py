@@ -7,7 +7,24 @@ Unauthorized use, reproduction, or distribution is prohibited.
 import uuid
 import datetime
 import json
+import logging
+import os
 from typing import Dict, Any
+
+# Configure proper logging instead of print statements
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, 'gsp_governance.log')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_FILE, mode='a')
+    ]
+)
+logger = logging.getLogger('GSPGovernance')
 
 # -----------------------------
 # Governance Logger
@@ -21,7 +38,7 @@ class GSPGovernanceLogger:
             "event_type": event_type,
             "payload": payload
         }
-        print(json.dumps(log_entry, indent=2))
+        logger.info(json.dumps(log_entry))
 
 
 # -----------------------------

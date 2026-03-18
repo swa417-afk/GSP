@@ -48,6 +48,11 @@ db.serialize(() => {
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
   `);
+
+  // Create indexes for performance optimization
+  db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at DESC)`);
 });
 
 /* Auth middleware */
@@ -87,35 +92,40 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, app: APP_NAME, time: nowISO() });
 });
 
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: "email and password required" });
   }
 
   const createdAt = nowISO();
-  const passwordHash = bcrypt.hashSync(password, 10);
+  
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
 
-  const stmt = db.prepare(
-    "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)"
-  );
+    const stmt = db.prepare(
+      "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)"
+    );
 
-  stmt.run([String(email).toLowerCase(), passwordHash, createdAt], function (err) {
-    if (err) {
-      if (String(err.message || "").includes("UNIQUE")) {
-        return res.status(409).json({ error: "User already exists" });
+    stmt.run([String(email).toLowerCase(), passwordHash, createdAt], function (err) {
+      if (err) {
+        if (String(err.message || "").includes("UNIQUE")) {
+          return res.status(409).json({ error: "User already exists" });
+        }
+        return res.status(500).json({ error: "DB error", details: err.message });
       }
-      return res.status(500).json({ error: "DB error", details: err.message });
-    }
 
-    return res.json({
-      ok: true,
-      user: { id: this.lastID, email: String(email).toLowerCase(), created_at: createdAt },
+      return res.json({
+        ok: true,
+        user: { id: this.lastID, email: String(email).toLowerCase(), created_at: createdAt },
+      });
     });
-  });
+  } catch (err) {
+    return res.status(500).json({ error: "Password hashing failed", details: err.message });
+  }
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: "email and password required" });
@@ -124,19 +134,23 @@ app.post("/api/auth/login", (req, res) => {
   db.get(
     "SELECT id, email, password_hash FROM users WHERE email = ?",
     [String(email).toLowerCase()],
-    (err, row) => {
+    async (err, row) => {
       if (err) return res.status(500).json({ error: "DB error", details: err.message });
       if (!row) return res.status(401).json({ error: "Invalid credentials" });
 
-      const ok = bcrypt.compareSync(password, row.password_hash);
-      if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+      try {
+        const ok = await bcrypt.compare(password, row.password_hash);
+        if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
-      const token = jwt.sign({ email: row.email }, JWT_SECRET, {
-        subject: String(row.id),
-        expiresIn: "7d",
-      });
+        const token = jwt.sign({ email: row.email }, JWT_SECRET, {
+          subject: String(row.id),
+          expiresIn: "7d",
+        });
 
-      return res.json({ ok: true, token });
+        return res.json({ ok: true, token });
+      } catch (err) {
+        return res.status(500).json({ error: "Password comparison failed", details: err.message });
+      }
     }
   );
 });
@@ -194,8 +208,9 @@ app.get("/api/gsp/receipt/:id", requireAuth, (req, res) => {
       let attestation = null;
       try {
         attestation = JSON.parse(row.attestation);
-      } catch {
-        attestation = row.attestation;
+      } catch (parseErr) {
+        console.error(`Failed to parse attestation for receipt ${row.id}:`, parseErr);
+        attestation = { error: "Invalid attestation format" };
       }
 
       return res.json({
@@ -222,10 +237,20 @@ app.get("/api/gsp/receipts", requireAuth, (req, res) => {
     (err, rows) => {
       if (err) return res.status(500).json({ error: "DB error", details: err.message });
 
-      const receipts = (rows || []).map(row => ({
-        ...row,
-        attestation: JSON.parse(row.attestation || "{}")
-      }));
+      const receipts = (rows || []).map(row => {
+        let attestation = null;
+        try {
+          attestation = JSON.parse(row.attestation);
+        } catch (parseErr) {
+          console.error(`Failed to parse attestation for receipt ${row.id}:`, parseErr);
+          attestation = { error: "Invalid attestation format" };
+        }
+        
+        return {
+          ...row,
+          attestation
+        };
+      });
 
       return res.json({
         ok: true,
