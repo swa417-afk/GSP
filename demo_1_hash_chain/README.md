@@ -1,6 +1,6 @@
 # Demo 1: Hash Chain
 
-Minimal append-only log demonstrating hash-chained entries for GSP evidence.
+Append-only attestation log demonstrating hash-chained entries for GSP evidence.
 
 ## Prerequisites
 
@@ -10,22 +10,23 @@ Minimal append-only log demonstrating hash-chained entries for GSP evidence.
 
 ```bash
 cd demo_1_hash_chain
-
-# Validate the provided genesis record
-python app.py verify
-
-# Append a new entry
-python app.py add "Captured approval for request #1234"
-
-# Show the full chain
-python app.py show
+python app.py
 ```
 
-Entries are stored in `storage.json`, each containing:
-- `index`: zero-based position in the chain
-- `timestamp`: UTC timestamp when recorded
-- `payload`: message body
-- `prev_hash`: hash of the previous entry (or `null` for genesis)
-- `hash`: SHA-256 over the entry contents (excluding this `hash` field)
+Menu options:
+1. Create an attestation (prompts for `userId` and `action`)
+2. Verify the stored chain
+3. Reconstruct (prints timestamps, actions, and hash prefixes)
+4. Exit
 
-Any tampering with an entry or its order will cause `python app.py verify` to fail.
+Entries are stored in `storage.json` as a list, each containing:
+- `id`: attestation UUID
+- `issuer`: fixed to `GSP-Demo`
+- `userId`: actor identifier
+- `action`: recorded action
+- `metadata`: optional JSON object
+- `timestamp`: UTC timestamp at creation
+- `previousHash`: hash of the prior attestation (or `null` for the first)
+- `hash`: SHA-256 over the attestation contents (excluding this `hash` field)
+
+Any tampering with an entry or its order will cause verification to fail.
