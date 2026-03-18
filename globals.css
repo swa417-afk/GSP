@@ -1,0 +1,51 @@
+
+:root {
+  --gsp-blue: #0057b8;
+  --gsp-glass: rgba(255, 255, 255, 0.16);
+  --gsp-border: rgba(255, 255, 255, 0.3);
+  --gsp-bg: #050816;
+  --gsp-accent: #15e6ff;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    sans-serif;
+  background: radial-gradient(circle at top, #102a43, #050816 55%);
+  color: #f5f7ff;
+}
+
+a {
+  color: var(--gsp-accent);
+  text-decoration: none;
+}
+
+.glass-card {
+  background: var(--gsp-glass);
+  border: 1px solid var(--gsp-border);
+  border-radius: 18px;
+  padding: 24px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.page-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.page-footer {
+  text-align: center;
+  padding: 12px;
+  font-size: 12px;
+  opacity: 0.7;
+}
