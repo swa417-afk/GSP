@@ -1,0 +1,5 @@
+{
+  "name": "Glass Substrate Presenter",
+  "description": "A React application that converts a policy presentation into an automated 10-second slideshow video experience. Features Google Veo integration to animate the title slide.",
+  "requestFramePermissions": []
+}
