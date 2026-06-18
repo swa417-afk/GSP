@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSP — Internal System Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@300;400;600;700;900&family=Bebas+Neue&display=swap');
+
+:root {
+  --bg:       #06080b;
+  --bg2:      #0b0f14;
+  --bg3:      #111820;
+  --amber:    #ffaa00;
+  --amber-dim:#7a5200;
+  --cyan:     #00e5ff;
+  --cyan-dim: #004d5c;
+  --green:    #39ff14;
+  --red:      #ff2244;
+  --purple:   #bf7fff;
+  --border:   #1a2a35;
+  --text:     #c8d8e4;
+  --text-dim: #3a5566;
+  --mono:     'Inconsolata', monospace;
+  --display:  'Bebas Neue', sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--mono);}
+
+/* scanline overlay */
+body::after{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
+  pointer-events:none;z-index:9999;
+}
+
+/* ─── LAYOUT ─────────────────────────────── */
+#app{display:grid;grid-template-rows:52px 1fr 170px;height:100vh;gap:0;}
+
+/* ─── HEADER ─────────────────────────────── */
+#header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;border-bottom:1px solid var(--border);
+  background:var(--bg2);
+}
+#header h1{font-family:var(--display);font-size:26px;letter-spacing:4px;color:var(--amber);}
+#header h1 span{color:var(--cyan);font-size:14px;letter-spacing:2px;font-family:var(--mono);margin-left:12px;}
+.header-stats{display:flex;gap:24px;}
+.hstat{display:flex;flex-direction:column;align-items:flex-end;}
+.hstat-val{font-size:18px;font-weight:700;color:var(--amber);}
+.hstat-lbl{font-size:9px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;}
+.pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;animation:pulse 1.2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(57,255,20,0.5);}50%{opacity:.7;box-shadow:0 0 0 5px rgba(57,255,20,0);}}
+
+/* ─── MAIN AREA ──────────────────────────── */
+#main{display:grid;grid-template-columns:300px 1fr 300px;gap:0;overflow:hidden;}
+
+/* ─── PANELS ─────────────────────────────── */
+.panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.panel:last-child{border-right:none;border-left:1px solid var(--border);}
+.panel-title{
+  font-size:10px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--amber);padding:10px 16px;border-bottom:1px solid var(--border);
+  background:var(--bg2);display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.panel-title::before{content:'//';color:var(--text-dim);}
+.panel-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px;}
+
+/* ─── CENTER STAGE ───────────────────────── */
+#center{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;position:relative;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 30%,rgba(0,229,255,0.04) 0%,transparent 70%);
+}
+
+/* Canvas for particle flows */
+#canvas{position:absolute;inset:0;pointer-events:none;}
+
+/* ─── ENGINE CORE DISPLAY ────────────────── */
+#engine-display{
+  width:100%;padding:16px 20px;z-index:1;
+  display:flex;flex-direction:column;gap:10px;
+}
+
+.stage-label{
+  font-size:9px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--text-dim);margin-bottom:4px;
+}
+
+/* Pipeline stages */
+.pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:4px;}
+.pipe-stage{
+  border:1px solid var(--border);padding:10px 8px;text-align:center;
+  background:var(--bg2);position:relative;transition:all .3s;
+  cursor:default;
+}
+.pipe-stage.active{
+  border-color:var(--amber);background:rgba(255,170,0,0.06);
+  box-shadow:0 0 20px rgba(255,170,0,0.15);
+}
+.pipe-stage.done{border-color:var(--green);background:rgba(57,255,20,0.04);}
+.pipe-stage.error{border-color:var(--red);background:rgba(255,34,68,0.04);}
+.pipe-icon{font-size:20px;margin-bottom:5px;}
+.pipe-name{font-size:10px;color:var(--text);letter-spacing:.5px;font-weight:600;}
+.pipe-fn{font-size:9px;color:var(--amber);margin-top:3px;font-family:var(--mono);}
+.pipe-arrow{
+  position:absolute;right:-14px;top:50%;transform:translateY(-50%);
+  color:var(--text-dim);font-size:16px;z-index:2;
+}
+
+/* ─── HASH ANIMATOR ──────────────────────── */
+#hash-machine{
+  border:1px solid var(--border);background:var(--bg2);
+  padding:12px 16px;margin-top:4px;
+}
+#hash-machine .hm-title{font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:8px;text-transform:uppercase;}
+#hash-input{
+  font-size:10px;color:var(--text-dim);word-break:break-all;
+  min-height:24px;line-height:1.7;transition:color .3s;
+  border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;
+}
+#hash-input.live{color:var(--cyan);}
+.hash-bytes{display:flex;flex-wrap:wrap;gap:3px;min-height:20px;margin-bottom:8px;}
+.hbyte{
+  font-size:9px;padding:1px 3px;border:1px solid var(--border);
+  color:var(--text-dim);font-family:var(--mono);
+  transition:all .15s;
+}
+.hbyte.active{border-color:var(--amber);color:var(--amber);background:rgba(255,170,0,0.1);}
+.hbyte.done{border-color:var(--cyan-dim);color:var(--cyan);}
+#hash-output{
+  font-size:11px;font-weight:700;color:var(--text-dim);
+  word-break:break-all;letter-spacing:1px;
+  min-height:20px;transition:color .5s;
+}
+#hash-output.live{color:var(--green);text-shadow:0 0 10px rgba(57,255,20,0.4);}
+
+/* ─── CHAIN VISUALIZER ───────────────────── */
+#chain-viz{
+  flex:1;overflow-x:auto;overflow-y:hidden;
+  display:flex;align-items:center;
+  padding:8px 16px;gap:0;min-height:0;
+}
+.chain-block{
+  flex-shrink:0;width:160px;height:110px;
+  border:1px solid var(--border);background:var(--bg2);
+  padding:10px;position:relative;transition:all .4s;
+}
+.chain-block.genesis{border-color:var(--amber);}
+.chain-block.valid{border-color:rgba(57,255,20,0.6);background:rgba(57,255,20,0.03);}
+.chain-block.tampered{border-color:var(--red);background:rgba(255,34,68,0.05);animation:tamper-flash 0.5s ease infinite;}
+.chain-block.verifying{border-color:var(--amber);animation:scan-glow 0.4s ease infinite;}
+@keyframes tamper-flash{0%,100%{box-shadow:0 0 8px rgba(255,34,68,0.3);}50%{box-shadow:0 0 20px rgba(255,34,68,0.6);}}
+@keyframes scan-glow{0%,100%{box-shadow:0 0 6px rgba(255,170,0,0.3);}50%{box-shadow:0 0 16px rgba(255,170,0,0.7);}}
+.cb-num{font-size:9px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px;}
+.cb-id{font-size:9px;color:var(--amber);word-break:break-all;line-height:1.4;margin-bottom:4px;}
+.cb-hash{font-size:8px;color:var(--text-dim);word-break:break-all;line-height:1.4;}
+.cb-hash span{color:var(--cyan);}
+.cb-status{
+  position:absolute;bottom:8px;right:8px;
+  font-size:9px;font-weight:700;letter-spacing:1px;
+}
+.cb-status.ok{color:var(--green);}
+.cb-status.bad{color:var(--red);}
+.cb-status.scanning{color:var(--amber);}
+
+.chain-link{
+  flex-shrink:0;width:28px;height:2px;
+  background:var(--border);position:relative;
+  align-self:center;margin-top:-20px;
+}
+.chain-link::after{
+  content:'▶';position:absolute;right:-7px;top:-8px;
+  color:var(--border);font-size:12px;transition:color .3s;
+}
+.chain-link.valid{background:var(--green);}
+.chain-link.valid::after{color:var(--green);}
+.chain-link.broken{background:var(--red);}
+.chain-link.broken::after{color:var(--red);}
+
+/* ─── BOTTOM CONSOLE ─────────────────────── */
+#console{
+  border-top:1px solid var(--border);
+  display:grid;grid-template-columns:1fr auto;
+  background:var(--bg2);
+}
+#log{
+  padding:10px 16px;overflow-y:auto;height:170px;
+  font-size:11px;line-height:1.9;
+}
+.log-line{display:flex;gap:10px;opacity:0;animation:fade-in .2s forwards;}
+@keyframes fade-in{to{opacity:1;}}
+.log-ts{color:var(--text-dim);flex-shrink:0;}
+.log-mod{width:80px;flex-shrink:0;font-weight:700;}
+.log-mod.engine{color:var(--amber);}
+.log-mod.storage{color:var(--green);}
+.log-mod.verify{color:var(--cyan);}
+.log-mod.recon{color:var(--purple);}
+.log-mod.system{color:var(--text-dim);}
+.log-mod.error{color:var(--red);}
+.log-msg{color:var(--text);}
+.log-msg.highlight{color:var(--green);font-weight:700;}
+.log-msg.warn{color:var(--amber);}
+.log-msg.error{color:var(--red);}
+
+#controls{
+  border-left:1px solid var(--border);
+  padding:14px 16px;display:flex;flex-direction:column;gap:8px;
+  min-width:220px;
+}
+.ctrl-group-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:2px;}
+.btn{
+  font-family:var(--mono);font-size:11px;letter-spacing:1.5px;
+  text-transform:uppercase;padding:7px 14px;border:1px solid;
+  cursor:pointer;background:transparent;transition:all .2s;
+  text-align:left;display:flex;align-items:center;gap:8px;
+}
+.btn::before{content:'▶';font-size:9px;}
+.btn:disabled{opacity:.3;cursor:not-allowed;}
+.btn-amber{border-color:var(--amber);color:var(--amber);}
+.btn-amber:hover:not(:disabled){background:rgba(255,170,0,0.08);box-shadow:0 0 12px rgba(255,170,0,0.3);}
+.btn-green{border-color:var(--green);color:var(--green);}
+.btn-green:hover:not(:disabled){background:rgba(57,255,20,0.06);}
+.btn-red{border-color:var(--red);color:var(--red);}
+.btn-red:hover:not(:disabled){background:rgba(255,34,68,0.06);}
+.btn-cyan{border-color:var(--cyan);color:var(--cyan);}
+.btn-cyan:hover:not(:disabled){background:rgba(0,229,255,0.06);}
+.btn-gray{border-color:var(--border);color:var(--text-dim);}
+.btn-gray:hover:not(:disabled){border-color:var(--text-dim);}
+
+/* ─── LEFT PANEL ─────────────────────────── */
+.module-list{display:flex;flex-direction:column;gap:6px;}
+.module-item{
+  border:1px solid var(--border);padding:10px 12px;
+  transition:all .3s;position:relative;overflow:hidden;
+}
+.module-item::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--border);transition:background .3s;
+}
+.module-item.active::before{background:var(--amber);}
+.module-item.active{border-color:rgba(255,170,0,0.3);background:rgba(255,170,0,0.04);}
+.mi-name{font-size:12px;font-weight:700;color:var(--text);letter-spacing:.5px;}
+.mi-file{font-size:9px;color:var(--text-dim);margin-top:2px;}
+.mi-state{font-size:9px;color:var(--text-dim);margin-top:5px;font-style:italic;}
+.mi-state.running{color:var(--amber);animation:blink-txt .7s step-end infinite;}
+.mi-state.done{color:var(--green);}
+.mi-state.idle{color:var(--text-dim);}
+.mi-state.error{color:var(--red);}
+@keyframes blink-txt{50%{opacity:.3;}}
+
+/* ─── RIGHT PANEL ────────────────────────── */
+.event-inspector{display:flex;flex-direction:column;gap:4px;}
+.ei-field{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(26,42,53,0.8);}
+.ei-key{font-size:9px;color:var(--cyan);width:100px;flex-shrink:0;letter-spacing:.5px;}
+.ei-val{font-size:10px;color:var(--text);word-break:break-all;line-height:1.5;}
+.ei-val.hash{color:var(--text-dim);font-size:9px;}
+.ei-val.ok{color:var(--green);}
+.ei-val.bad{color:var(--red);}
+.ei-val.hi{color:var(--amber);}
+
+/* ─── INTEGRITY BAR ──────────────────────── */
+#integrity-bar{padding:8px 12px;background:var(--bg3);}
+.ib-label{font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;}
+.ib-blocks{display:flex;gap:3px;flex-wrap:wrap;}
+.ib-block{
+  width:16px;height:16px;border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:8px;transition:all .3s;
+}
+.ib-block.valid{border-color:var(--green);color:var(--green);background:rgba(57,255,20,0.1);}
+.ib-block.invalid{border-color:var(--red);color:var(--red);background:rgba(255,34,68,0.1);animation:tamper-flash .6s infinite;}
+.ib-block.pending{border-color:var(--text-dim);color:var(--text-dim);}
+.ib-block.scanning{border-color:var(--amber);color:var(--amber);animation:scan-glow .4s infinite;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <h1>GLASS SUBSTRATE <span>// INTERNAL SYSTEM DEMO</span></h1>
+    <div class="header-stats">
+      <div class="hstat"><div class="hstat-val" id="stat-chain">0</div><div class="hstat-lbl">Chain Length</div></div>
+      <div class="hstat"><div class="hstat-val" id="stat-hashes">0</div><div class="hstat-lbl">Hashes Computed</div></div>
+      <div class="hstat"><div class="hstat-val" id="stat-status" style="color:var(--green)"><span class="pulse-dot"></span>INTACT</div><div class="hstat-lbl">Chain Status</div></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- LEFT: Module state panel -->
+    <div class="panel">
+      <div class="panel-title">Module States</div>
+      <div class="panel-body">
+        <div class="module-list">
+          <div class="module-item" id="mod-engine">
+            <div class="mi-name">engine.py</div>
+            <div class="mi-file">gsp_core/engine.py</div>
+            <div class="mi-state idle" id="mod-engine-state">▸ IDLE</div>
+          </div>
+          <div class="module-item" id="mod-storage">
+            <div class="mi-name">storage.py</div>
+            <div class="mi-file">gsp_core/storage.py</div>
+            <div class="mi-state idle" id="mod-storage-state">▸ IDLE</div>
+          </div>
+          <div class="module-item" id="mod-verify">
+            <div class="mi-name">verification.py</div>
+            <div class="mi-file">gsp_core/verification.py</div>
+            <div class="mi-state idle" id="mod-verify-state">▸ IDLE</div>
+          </div>
+          <div class="module-item" id="mod-recon">
+            <div class="mi-name">reconstruction.py</div>
+            <div class="mi-file">gsp_core/reconstruction.py</div>
+            <div class="mi-state idle" id="mod-recon-state">▸ IDLE</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="panel-title" style="border:none;padding:0 0 8px;background:transparent;margin-bottom:8px">// Call Stack</div>
+          <div id="callstack" style="font-size:10px;line-height:2;color:var(--text-dim);min-height:60px;">
+            <span style="color:var(--text-dim);font-style:italic">empty</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="panel-title" style="border:none;padding:0 0 8px;background:transparent;margin-bottom:8px">// Integrity Map</div>
+          <div id="integrity-bar">
+            <div class="ib-blocks" id="ib-blocks"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Engine visualizer -->
+    <div id="center">
+      <canvas id="canvas"></canvas>
+
+      <div id="engine-display">
+        <div class="stage-label">seal_event() — Processing Pipeline</div>
+        <div class="pipeline">
+          <div class="pipe-stage" id="ps-0">
+            <div class="pipe-icon">📥</div>
+            <div class="pipe-name">Load Chain</div>
+            <div class="pipe-fn">load_chain()</div>
+            <div class="pipe-arrow">›</div>
+          </div>
+          <div class="pipe-stage" id="ps-1">
+            <div class="pipe-icon">🏗️</div>
+            <div class="pipe-name">Build Event</div>
+            <div class="pipe-fn">uuid4() + now()</div>
+            <div class="pipe-arrow">›</div>
+          </div>
+          <div class="pipe-stage" id="ps-2">
+            <div class="pipe-icon">🔗</div>
+            <div class="pipe-name">Link Hash</div>
+            <div class="pipe-fn">previous_hash</div>
+            <div class="pipe-arrow">›</div>
+          </div>
+          <div class="pipe-stage" id="ps-3">
+            <div class="pipe-icon">🔐</div>
+            <div class="pipe-name">SHA-256</div>
+            <div class="pipe-fn">compute_hash()</div>
+            <div class="pipe-arrow">›</div>
+          </div>
+          <div class="pipe-stage" id="ps-4">
+            <div class="pipe-icon">💾</div>
+            <div class="pipe-name">Persist</div>
+            <div class="pipe-fn">save_chain()</div>
+          </div>
+        </div>
+
+        <div id="hash-machine">
+          <div class="hm-title">SHA-256 Engine — Live Computation</div>
+          <div id="hash-input">Waiting for input payload...</div>
+          <div class="hash-bytes" id="hash-bytes"></div>
+          <div id="hash-output">—</div>
+        </div>
+      </div>
+
+      <!-- Chain visualization -->
+      <div style="width:100%;padding:8px 16px 4px;z-index:1;flex-shrink:0;">
+        <div class="stage-label">Linked Hash Chain — storage.json</div>
+      </div>
+      <div id="chain-viz"></div>
+    </div>
+
+    <!-- RIGHT: Event inspector -->
+    <div class="panel">
+      <div class="panel-title">Event Inspector</div>
+      <div class="panel-body">
+        <div id="event-inspector" class="event-inspector">
+          <div style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 0">Seal an event to inspect</div>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="panel-title" style="border:none;padding:0 0 8px;background:transparent;margin-bottom:8px">// Verification Result</div>
+          <div id="verify-result" style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 0">Run verification to see result</div>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="panel-title" style="border:none;padding:0 0 8px;background:transparent;margin-bottom:8px">// Reconstruction Record</div>
+          <div id="recon-result" style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 0">Reconstruct to see evidence record</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM CONSOLE -->
+  <div id="console">
+    <div id="log"></div>
+    <div id="controls">
+      <div class="ctrl-group-label">Seal Operations</div>
+      <button class="btn btn-amber" id="btn-seal" onclick="doSeal()">Seal Event</button>
+      <button class="btn btn-amber" id="btn-seal3" onclick="doSeal3()">Seal ×3 Burst</button>
+      <div class="ctrl-group-label" style="margin-top:4px">Audit Operations</div>
+      <button class="btn btn-cyan" id="btn-verify" onclick="doVerify()" disabled>Verify Chain</button>
+      <button class="btn btn-cyan" id="btn-recon" onclick="doReconstruct()" disabled>Reconstruct Last</button>
+      <div class="ctrl-group-label" style="margin-top:4px">Attack Demo</div>
+      <button class="btn btn-red" id="btn-tamper" onclick="doTamper()" disabled>Inject Tamper</button>
+      <button class="btn btn-gray" onclick="doReset()">Reset System</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────
+let chain = [];
+let hashCount = 0;
+let busy = false;
+let tampered = false;
+let tamperedIdx = -1;
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let logTs = 0;
+
+// ─── Crypto simulation ─────────────────────────────────────────────────
+function fakeUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random()*16|0, v = c=='x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+// Deterministic fake hash from string seed
+function hashFrom(seed) {
+  let h1 = 0x6b84e565, h2 = 0x52bc491c, h3 = 0xde4fe741, h4 = 0xa8c7e6bd;
+  for (let i = 0; i < seed.length; i++) {
+    const c = seed.charCodeAt(i);
+    h1 ^= (c * 2654435761) >>> 0;
+    h2 ^= (c * 2246822519) >>> 0;
+    h3 ^= (c * 3266489917) >>> 0;
+    h4 ^= (c * 668265263) >>> 0;
+    h1 = ((h1 << 13) | (h1 >>> 19)) >>> 0;
+    h2 = ((h2 << 7)  | (h2 >>> 25)) >>> 0;
+    h3 = ((h3 << 17) | (h3 >>> 15)) >>> 0;
+    h4 = ((h4 << 5)  | (h4 >>> 27)) >>> 0;
+  }
+  return [h1,h2,h3,h4,h1^h3,h2^h4,h1+h2,h3+h4]
+    .map(x => (x>>>0).toString(16).padStart(8,'0')).join('');
+}
+
+// ─── Logging ────────────────────────────────────────────────────────────
+function log(module, msg, cls='') {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  const ts = new Date().toISOString().slice(11,23);
+  line.innerHTML = `
+    <span class="log-ts">${ts}</span>
+    <span class="log-mod ${module}">${module.toUpperCase().padEnd(8)}</span>
+    <span class="log-msg ${cls}">${msg}</span>
+  `;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  // Keep last 80 lines
+  while (el.children.length > 80) el.removeChild(el.firstChild);
+}
+
+// ─── Module state ────────────────────────────────────────────────────────
+function setModule(name, state, text) {
+  const item = document.getElementById(`mod-${name}`);
+  const stateEl = document.getElementById(`mod-${name}-state`);
+  item.classList.toggle('active', state === 'running');
+  stateEl.className = `mi-state ${state}`;
+  stateEl.textContent = `▸ ${text.toUpperCase()}`;
+}
+
+// ─── Call stack ──────────────────────────────────────────────────────────
+let callStack = [];
+function pushCall(fn) {
+  callStack.push(fn);
+  renderCallStack();
+}
+function popCall() {
+  callStack.pop();
+  renderCallStack();
+}
+function clearCalls() { callStack = []; renderCallStack(); }
+function renderCallStack() {
+  const el = document.getElementById('callstack');
+  if (callStack.length === 0) {
+    el.innerHTML = '<span style="color:var(--text-dim);font-style:italic">empty</span>';
+    return;
+  }
+  el.innerHTML = callStack.map((fn, i) => {
+    const indent = '  '.repeat(i);
+    const color = i === callStack.length-1 ? 'var(--amber)' : 'var(--text-dim)';
+    return `<div style="color:${color}">${indent}→ ${fn}</div>`;
+  }).join('');
+}
+
+// ─── Pipeline stages ─────────────────────────────────────────────────────
+function activatePipeStage(idx, cls='active') {
+  for (let i=0;i<5;i++) document.getElementById(`ps-${i}`).className = 'pipe-stage';
+  if (idx >= 0) {
+    const el = document.getElementById(`ps-${idx}`);
+    el.classList.add(cls);
+  }
+}
+async function animatePipeline(stages) {
+  for (const [idx, duration, cls] of stages) {
+    activatePipeStage(idx, cls || 'active');
+    await sleep(duration);
+  }
+  activatePipeStage(-1);
+}
+
+// ─── Hash machine ────────────────────────────────────────────────────────
+async function animateHash(payload, hashVal) {
+  const inputEl = document.getElementById('hash-input');
+  const bytesEl = document.getElementById('hash-bytes');
+  const outputEl = document.getElementById('hash-output');
+
+  const jsonStr = JSON.stringify(payload, Object.keys(payload).sort());
+  inputEl.textContent = jsonStr.substring(0, 120) + (jsonStr.length > 120 ? '...' : '');
+  inputEl.classList.add('live');
+
+  // Animate bytes
+  bytesEl.innerHTML = '';
+  const bytes = jsonStr.split('').slice(0, 48);
+  for (const b of bytes) {
+    const span = document.createElement('span');
+    span.className = 'hbyte';
+    span.textContent = b.charCodeAt(0).toString(16).padStart(2,'0');
+    bytesEl.appendChild(span);
+  }
+
+  await sleep(200);
+  const byteEls = bytesEl.querySelectorAll('.hbyte');
+  for (let i=0; i<byteEls.length; i++) {
+    byteEls[i].classList.add('active');
+    await sleep(25);
+    byteEls[i].classList.remove('active');
+    byteEls[i].classList.add('done');
+  }
+
+  await sleep(150);
+  outputEl.textContent = hashVal;
+  outputEl.classList.add('live');
+  hashCount++;
+  document.getElementById('stat-hashes').textContent = hashCount;
+  await sleep(300);
+}
+
+// ─── Event Inspector ──────────────────────────────────────────────────────
+function renderInspector(event, isLast) {
+  const el = document.getElementById('event-inspector');
+  const fields = [
+    ['event_id', event.event_id, 'hi'],
+    ['timestamp', event.timestamp, ''],
+    ['user_id', event.user_id, ''],
+    ['event_type', event.event_type, 'hi'],
+    ['risk_level', event.risk_level, 'hi'],
+    ['policy_version', event.policy_version, ''],
+    ['previous_hash', event.previous_hash ? event.previous_hash.substring(0,16)+'...' : 'null (genesis)', 'hash'],
+    ['hash', event.hash.substring(0,16)+'...', 'hash'],
+  ];
+  el.innerHTML = fields.map(([k,v,c]) => `
+    <div class="ei-field">
+      <div class="ei-key">${k}</div>
+      <div class="ei-val ${c}">${v}</div>
+    </div>
+  `).join('');
+}
+
+// ─── Chain rendering ──────────────────────────────────────────────────────
+function renderChain() {
+  const el = document.getElementById('chain-viz');
+  el.innerHTML = '';
+  if (chain.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:11px;margin:auto;font-style:italic">Chain empty — seal first event</div>';
+    return;
+  }
+  chain.forEach((ev, i) => {
+    if (i > 0) {
+      const link = document.createElement('div');
+      link.className = 'chain-link';
+      link.id = `link-${i}`;
+      const isTampered = tampered && tamperedIdx >= 0 && i > tamperedIdx;
+      link.classList.add(isTampered ? 'broken' : 'valid');
+      el.appendChild(link);
+    }
+    const block = document.createElement('div');
+    block.id = `block-${i}`;
+    block.className = 'chain-block';
+    const isTampered = tampered && i === tamperedIdx;
+    const isAffected = tampered && i > tamperedIdx;
+    block.classList.add(i === 0 ? 'genesis' : isTampered ? 'tampered' : isAffected ? 'tampered' : 'valid');
+    const shortId = ev.event_id.substring(0,8)+'...';
+    const shortHash = ev.hash.substring(0,10)+'...';
+    const prevHash = ev.previous_hash ? ev.previous_hash.substring(0,8)+'...' : 'null';
+    block.innerHTML = `
+      <div class="cb-num">BLOCK ${i}${i===0?' · GENESIS':''}</div>
+      <div class="cb-id">${shortId}</div>
+      <div class="cb-hash">prev: <span>${prevHash}</span></div>
+      <div class="cb-hash" style="margin-top:3px">hash: <span>${shortHash}</span></div>
+      <div class="cb-status ${isTampered||isAffected ? 'bad' : 'ok'}">${isTampered ? '✗ TAMPERED' : isAffected ? '✗ BROKEN' : '✓'}</div>
+    `;
+    el.appendChild(block);
+  });
+  // Scroll to end
+  el.scrollLeft = el.scrollWidth;
+  document.getElementById('stat-chain').textContent = chain.length;
+}
+
+// ─── Integrity bar ────────────────────────────────────────────────────────
+function renderIntegrityBar(map, scanningIdx) {
+  const el = document.getElementById('ib-blocks');
+  el.innerHTML = '';
+  for (let i=0;i<chain.length;i++) {
+    const b = document.createElement('div');
+    b.className = 'ib-block';
+    if (scanningIdx !== undefined && i === scanningIdx) {
+      b.classList.add('scanning');
+      b.textContent = '?';
+    } else if (map && i < map.length) {
+      b.classList.add(map[i] ? 'valid' : 'invalid');
+      b.textContent = map[i] ? '1' : '0';
+    } else {
+      b.classList.add('pending');
+      b.textContent = '·';
+    }
+    el.appendChild(b);
+  }
+}
+
+// ─── Canvas particles ────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+
+function resizeCanvas() {
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function spawnParticle(color, startX, startY, endX, endY) {
+  particles.push({ x: startX, y: startY, tx: endX, ty: endY, color, life: 1, speed: 0.015 + Math.random() * 0.02 });
+}
+
+function spawnDataFlow(color='#00e5ff') {
+  const cx = canvas.width / 2;
+  const positions = [
+    [cx - 200, 80], [cx - 100, 80], [cx, 80], [cx + 100, 80]
+  ];
+  for (let i = 0; i < positions.length - 1; i++) {
+    spawnParticle(color, positions[i][0], positions[i][1], positions[i+1][0], positions[i+1][1]);
+  }
+}
+
+function animateCanvas() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.life -= p.speed;
+    const t = 1 - p.life;
+    p.x += (p.tx - p.x) * 0.08;
+    p.y += (p.ty - p.y) * 0.08;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2,'0');
+    ctx.fill();
+    // Trail
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+    ctx.fillStyle = p.color + Math.floor(p.life * 60).toString(16).padStart(2,'0');
+    ctx.fill();
+  });
+  requestAnimationFrame(animateCanvas);
+}
+animateCanvas();
+
+function burstParticles(color, count=12) {
+  const cx = canvas.width / 2;
+  const cy = 140;
+  for (let i=0;i<count;i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const r = 80 + Math.random() * 60;
+    spawnParticle(color, cx, cy, cx + Math.cos(angle)*r, cy + Math.sin(angle)*r);
+  }
+}
+
+// ─── SEAL EVENT ───────────────────────────────────────────────────────────
+async function doSeal() {
+  if (busy) return;
+  busy = true;
+  setAllBtnsDisabled(true);
+  log('system', '─────────────────────── seal_event() ───────────────────────────');
+
+  pushCall('seal_event(user_id, event_type, risk_level, policy_version)');
+
+  // Stage 0: load chain
+  activatePipeStage(0);
+  setModule('storage','running','load_chain()');
+  pushCall('load_chain()');
+  log('storage', `Loading chain... length=${chain.length}`);
+  await sleep(350);
+  popCall();
+  setModule('storage','done','loaded');
+
+  // Stage 1: build event
+  activatePipeStage(1);
+  setModule('engine','running','building event...');
+  pushCall('uuid4() + utcnow()');
+  const eid = fakeUUID();
+  const ts = new Date().toISOString();
+  log('engine', `uuid4() → ${eid.substring(0,12)}...`);
+  await sleep(200);
+  log('engine', `utcnow() → ${ts}`);
+  await sleep(180);
+  popCall();
+
+  // Stage 2: link hash
+  activatePipeStage(2);
+  const prevHash = chain.length > 0 ? chain[chain.length-1].hash : null;
+  log('engine', `previous_hash = ${prevHash ? prevHash.substring(0,12)+'...' : 'null (genesis block)'}`);
+  await sleep(300);
+
+  // Build payload
+  const payload = {
+    event_id: eid, timestamp: ts,
+    user_id: 'analyst_42', event_type: 'HIGH_RISK_QUERY',
+    risk_level: 'HIGH', policy_version: 'v1.0',
+    previous_hash: prevHash
+  };
+
+  // Stage 3: SHA-256
+  activatePipeStage(3);
+  setModule('engine','running','compute_hash()');
+  pushCall('compute_hash(payload)');
+  log('engine', 'json.dumps(payload, sort_keys=True).encode()');
+  await sleep(150);
+  log('engine', 'hashlib.sha256(payload_bytes).hexdigest()');
+  const hashVal = hashFrom(JSON.stringify(payload, Object.keys(payload).sort()));
+  await animateHash(payload, hashVal);
+  log('engine', `→ hash: ${hashVal.substring(0,16)}...`, 'highlight');
+  popCall();
+  burstParticles('#ffaa00', 8);
+  await sleep(200);
+
+  // Stage 4: persist
+  activatePipeStage(4,'done');
+  const event = { ...payload, hash: hashVal };
+  chain.push(event);
+  setModule('storage','running','save_chain()');
+  pushCall('save_chain(chain)');
+  log('storage', `chain.append(event) → chain.length=${chain.length}`);
+  await sleep(250);
+  log('storage', 'json.dump(chain, file, indent=2) → storage.json');
+  await sleep(200);
+  popCall();
+  setModule('storage','done','saved');
+  setModule('engine','done','complete');
+  activatePipeStage(-1);
+  popCall(); // seal_event
+
+  log('engine', `✓ EVENT SEALED: event_id=${eid.substring(0,12)}...`, 'highlight');
+  burstParticles('#39ff14', 10);
+
+  renderChain();
+  renderInspector(event, true);
+  renderIntegrityBar(chain.map(()=>1));
+
+  document.getElementById('stat-chain').textContent = chain.length;
+
+  await sleep(300);
+  clearCalls();
+  setModule('engine','idle','idle');
+  setModule('storage','idle','idle');
+  busy = false;
+  setAllBtnsDisabled(false);
+  updateBtnStates();
+}
+
+// ─── SEAL × 3 ─────────────────────────────────────────────────────────────
+async function doSeal3() {
+  await doSeal();
+  await sleep(200);
+  await doSeal();
+  await sleep(200);
+  await doSeal();
+}
+
+// ─── VERIFY ───────────────────────────────────────────────────────────────
+async function doVerify() {
+  if (busy || chain.length === 0) return;
+  busy = true;
+  setAllBtnsDisabled(true);
+  log('system', '─────────────────────── verify_chain() ──────────────────────────');
+
+  pushCall('verify_chain()');
+  setModule('verify','running','verifying...');
+
+  pushCall('load_chain()');
+  setModule('storage','running','load_chain()');
+  log('storage', `Loading ${chain.length} events from storage.json`);
+  await sleep(300);
+  popCall();
+  setModule('storage','done','loaded');
+
+  const map = [];
+  log('verify', `Iterating ${chain.length} events...`);
+
+  for (let i = 0; i < chain.length; i++) {
+    const block = document.getElementById(`block-${i}`);
+    if (block) block.classList.add('verifying');
+    document.querySelector(`#block-${i} .cb-status`)?.classList.add('scanning');
+    renderIntegrityBar(map, i);
+
+    pushCall(`compute_hash(chain[${i}])`);
+    log('verify', `[${i}] Recomputing hash for ${chain[i].event_id.substring(0,8)}...`);
+    await sleep(280);
+
+    // recompute
+    const payload = { ...chain[i] };
+    delete payload.hash;
+    const recomp = hashFrom(JSON.stringify(payload, Object.keys(payload).sort()));
+    hashCount++;
+    document.getElementById('stat-hashes').textContent = hashCount;
+
+    const hashMatch = recomp === chain[i].hash;
+    let linkMatch = true;
+    if (i > 0) {
+      linkMatch = chain[i].previous_hash === chain[i-1].hash;
+      log('verify', `[${i}] prev_hash link: ${linkMatch ? '✓ VALID' : '✗ BROKEN'}`, linkMatch ? '' : 'error');
+    }
+    const valid = hashMatch && linkMatch && !(tampered && i === tamperedIdx);
+    map.push(valid ? 1 : 0);
+    popCall();
+
+    log('verify', `[${i}] hash match: ${hashMatch && !(!linkMatch) ? '✓' : '✗'} → ${valid ? 'VALID' : 'TAMPERED'}`, valid ? '' : 'error');
+
+    if (block) {
+      block.classList.remove('verifying');
+      if (!valid) {
+        block.classList.add('tampered');
+        block.classList.remove('valid');
+      }
+    }
+    renderIntegrityBar(map);
+    await sleep(200);
+  }
+
+  // Update link states
+  for (let i=1;i<chain.length;i++) {
+    const link = document.getElementById(`link-${i}`);
+    if (link) {
+      link.className = 'chain-link ' + (map[i] && map[i-1] ? 'valid' : 'broken');
+    }
+  }
+
+  const allValid = map.every(x=>x===1);
+  log('verify', `integrity_map = [${map.join(', ')}]`, allValid ? 'highlight' : 'error');
+  log('verify', `all(integrity_map) = ${allValid}`, allValid ? 'highlight' : 'error');
+
+  const vResult = document.getElementById('verify-result');
+  vResult.innerHTML = `
+    <div style="margin-bottom:6px;font-weight:700;color:${allValid ? 'var(--green)' : 'var(--red)'}">
+      ${allValid ? '✓ CHAIN INTACT' : '✗ TAMPER DETECTED'}
+    </div>
+    <div style="font-size:10px;color:var(--text-dim)">Events scanned: ${chain.length}</div>
+    <div style="font-size:10px;color:var(--text-dim)">Valid: ${map.filter(x=>x).length} · Invalid: ${map.filter(x=>!x).length}</div>
+    <div style="font-size:10px;margin-top:6px;word-break:break-all;color:var(--text-dim)">map: [${map.join(',')}]</div>
+  `;
+
+  const statEl = document.getElementById('stat-status');
+  statEl.innerHTML = allValid
+    ? '<span class="pulse-dot"></span>INTACT'
+    : '<span style="color:var(--red)">⚠ TAMPERED</span>';
+  statEl.style.color = allValid ? 'var(--green)' : 'var(--red)';
+
+  setModule('verify', allValid ? 'done' : 'error', allValid ? 'verified' : 'tamper found');
+  popCall();
+  await sleep(300);
+  clearCalls();
+  setModule('verify','idle','idle');
+  setModule('storage','idle','idle');
+  busy = false;
+  setAllBtnsDisabled(false);
+  updateBtnStates();
+}
+
+// ─── RECONSTRUCT ──────────────────────────────────────────────────────────
+async function doReconstruct() {
+  if (busy || chain.length === 0) return;
+  busy = true;
+  setAllBtnsDisabled(true);
+  const target = chain[chain.length - 1];
+  log('system', '────────────────── reconstruct_event(event_id) ──────────────────');
+  log('recon', `event_id = ${target.event_id}`);
+
+  pushCall(`reconstruct_event("${target.event_id.substring(0,8)}...")`);
+  setModule('recon','running','loading...');
+
+  pushCall('load_chain()');
+  setModule('storage','running','load_chain()');
+  log('storage', 'Loading chain for reconstruction...');
+  await sleep(280);
+  popCall();
+  setModule('storage','done','loaded');
+
+  pushCall('verify_chain()');
+  setModule('verify','running','verify_chain()');
+  log('verify', 'Running full chain verification before reconstruction...');
+  await sleep(400);
+
+  const map = chain.map((ev, i) => !(tampered && i === tamperedIdx) ? 1 : 0);
+  const allValid = map.every(x=>x===1);
+  renderIntegrityBar(map);
+  log('verify', `Chain integrity: all(integrity) = ${allValid}`, allValid ? 'highlight' : 'error');
+  popCall();
+  setModule('verify', allValid ? 'done' : 'error', 'done');
+
+  log('recon', `Scanning chain for event_id match...`);
+  await sleep(250);
+  const idx = chain.findIndex(e => e.event_id === target.event_id);
+  log('recon', `Found at chain[${idx}]`);
+  await sleep(200);
+
+  const status = allValid ? 'ADMISSIBLE' : 'INVALID';
+  log('recon', `Evidence Status → ${status}`, allValid ? 'highlight' : 'error');
+
+  const rResult = document.getElementById('recon-result');
+  rResult.innerHTML = `
+    <div class="event-inspector">
+      ${[
+        ['Event ID', target.event_id.substring(0,14)+'...', 'hi'],
+        ['User', target.user_id, ''],
+        ['Event Type', target.event_type, 'hi'],
+        ['Risk Level', target.risk_level, 'hi'],
+        ['Policy', target.policy_version, ''],
+        ['Chain Intact', String(allValid), allValid ? 'ok' : 'bad'],
+        ['Evidence Status', status, allValid ? 'ok' : 'bad'],
+      ].map(([k,v,c]) => `<div class="ei-field"><div class="ei-key">${k}</div><div class="ei-val ${c}">${v}</div></div>`).join('')}
+    </div>
+  `;
+
+  if (allValid) burstParticles('#39ff14', 12);
+  else burstParticles('#ff2244', 12);
+
+  popCall();
+  setModule('recon','done','complete');
+  await sleep(300);
+  clearCalls();
+  setModule('recon','idle','idle');
+  setModule('verify','idle','idle');
+  setModule('storage','idle','idle');
+  busy = false;
+  setAllBtnsDisabled(false);
+  updateBtnStates();
+}
+
+// ─── TAMPER ────────────────────────────────────────────────────────────────
+async function doTamper() {
+  if (busy || chain.length === 0 || tampered) return;
+  busy = true;
+  setAllBtnsDisabled(true);
+
+  // Pick a random middle block
+  const idx = Math.max(0, Math.floor(Math.random() * Math.max(1, chain.length - 1)));
+  tamperedIdx = idx;
+  tampered = true;
+
+  log('system', '─────────────────────── ⚠ ATTACK INJECTED ──────────────────────');
+  log('error', `Targeting chain[${idx}] — corrupting hash field...`,'error');
+  await sleep(400);
+
+  // Mutate the hash to simulate tampering
+  chain[idx].hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+  // Also corrupt previous_hash links downstream
+  for (let i = idx+1; i < chain.length; i++) {
+    chain[i].previous_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+  }
+
+  log('error', `chain[${idx}].hash corrupted!`, 'error');
+  log('error', `chain[${idx+1}...${chain.length-1}].previous_hash links broken`, 'error');
+
+  renderChain();
+  renderIntegrityBar(chain.map((_, i) => i < idx ? 1 : 0));
+
+  document.getElementById('stat-status').innerHTML = '<span style="color:var(--red)">⚠ TAMPERED</span>';
+  document.getElementById('stat-status').style.color = 'var(--red)';
+
+  burstParticles('#ff2244', 20);
+
+  log('system', 'Run Verify Chain to detect tamper → chain will show INVALID blocks');
+
+  await sleep(400);
+  busy = false;
+  setAllBtnsDisabled(false);
+  updateBtnStates();
+}
+
+// ─── RESET ─────────────────────────────────────────────────────────────────
+function doReset() {
+  chain = [];
+  hashCount = 0;
+  tampered = false;
+  tamperedIdx = -1;
+  clearCalls();
+  document.getElementById('stat-chain').textContent = '0';
+  document.getElementById('stat-hashes').textContent = '0';
+  document.getElementById('stat-status').innerHTML = '<span class="pulse-dot"></span>INTACT';
+  document.getElementById('stat-status').style.color = 'var(--green)';
+  document.getElementById('hash-input').textContent = 'Waiting for input payload...';
+  document.getElementById('hash-input').classList.remove('live');
+  document.getElementById('hash-bytes').innerHTML = '';
+  document.getElementById('hash-output').textContent = '—';
+  document.getElementById('hash-output').classList.remove('live');
+  document.getElementById('event-inspector').innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 0">Seal an event to inspect</div>';
+  document.getElementById('verify-result').innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 0">Run verification to see result</div>';
+  document.getElementById('recon-result').innerHTML = '<div style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 0">Reconstruct to see evidence record</div>';
+  document.getElementById('ib-blocks').innerHTML = '';
+  activatePipeStage(-1);
+  ['engine','storage','verify','recon'].forEach(m => setModule(m,'idle','idle'));
+  renderChain();
+  document.getElementById('log').innerHTML = '';
+  log('system','System reset — chain cleared','');
+  updateBtnStates();
+}
+
+// ─── Button states ────────────────────────────────────────────────────────
+function setAllBtnsDisabled(v) {
+  ['btn-seal','btn-seal3','btn-verify','btn-recon','btn-tamper'].forEach(id => {
+    document.getElementById(id).disabled = v;
+  });
+}
+
+function updateBtnStates() {
+  const hasChain = chain.length > 0;
+  document.getElementById('btn-verify').disabled = !hasChain;
+  document.getElementById('btn-recon').disabled = !hasChain;
+  document.getElementById('btn-tamper').disabled = !hasChain || tampered;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────
+log('system', 'Glass Substrate Protocol — Internal Demo initialized');
+log('system', 'Modules loaded: engine.py · storage.py · verification.py · reconstruction.py');
+log('system', 'Ready — seal first event to begin chain →');
+renderChain();
+</script>
+</body>
+</html>
