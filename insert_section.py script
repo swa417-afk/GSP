@@ -1,0 +1,35 @@
+insert_section_script = """import zipfile
+import os
+import shutil
+def update_docx(docx_path, xml_fragment_path, target_substring):
+# Load the fragment
+with open(xml_fragment_path, 'r', encoding='utf-8') as f:
+new_xml_content = f.read()
+# Create temporary paths
+temp_dir = 'temp_unpack'
+os.makedirs(temp_dir, exist_ok=True)
+# Unzip docx
+with zipfile.ZipFile(docx_path, 'r') as zip_ref:
+zip_ref.extractall(temp_dir)
+# Modify document.xml
+doc_path = os.path.join(temp_dir, 'word', 'document.xml')
+with open(doc_path, 'r', encoding='utf-8') as f:
+content = f.read()
+if target_substring in content:
+content = content.replace(target_substring, target_substring + new_xml_content)
+with open(doc_path, 'w', encoding='utf-8') as f:
+f.write(content)
+print("Successfully updated document.xml")
+else:
+print("Target substring not found in document.xml")
+return
+# Re-zip
+output_filename = 'updated_document.docx'
+with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zip_out:
+for root, dirs, files in os.walk(temp_dir):
+for file in files:
+file_path = os.path.join(root, file)
+archive_name = os.path.relpath(file_path, temp_dir)
+zip_out.write(file_path, archive_name)
+print(f"Created updated document: {output_filename}")
+shutil.rmtree(temp_dir)
