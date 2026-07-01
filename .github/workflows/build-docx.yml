@@ -1,0 +1,31 @@
+name: Build DOCX
+
+on:
+  push:
+    paths:
+      - "scripts/**"
+      - "build_section.py"
+      - "word/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate Section XML
+        run: python build_section.py
+
+      - name: Patch DOCX
+        run: python scripts/patch_docx.py document.docx section_8_2.xml "Can we prove this content was never stored?"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docx
+          path: document_patched.docx
