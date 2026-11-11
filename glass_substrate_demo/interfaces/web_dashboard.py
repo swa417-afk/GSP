@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
+import hmac
 from typing import Any, Dict
 
 from flask import Flask, jsonify, request
@@ -14,6 +16,7 @@ def create_app(storage_path: str | None = None) -> Flask:
     verifier = Verification()
     engine = Engine(storage=storage, verifier=verifier)
     app = Flask(__name__)
+    demo_write_token = os.environ.get("GSP_DEMO_WRITE_TOKEN", "")
 
     @app.get("/api/records")
     def records() -> Any:
@@ -21,6 +24,10 @@ def create_app(storage_path: str | None = None) -> Flask:
 
     @app.post("/api/records")
     def add_record() -> Any:
+        # Default to read-only; authorize each record-write with a demo token.
+        supplied_token = request.headers.get("X-GSP-Demo-Token", "")
+        if not demo_write_token or not hmac.compare_digest(supplied_token, demo_write_token):
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
         payload: Dict[str, Any] = request.get_json(force=True, silent=True) or {}
         required = ["model_id", "input_hash", "output_hash", "policy_id"]
         missing = [field for field in required if not payload.get(field)]
@@ -105,4 +112,4 @@ def create_app(storage_path: str | None = None) -> Flask:
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5055, debug=True)
+    app.run(host="127.0.0.1", port=5055, debug=False)

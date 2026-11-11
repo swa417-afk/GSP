@@ -29,7 +29,8 @@ if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
   echo "Error: Failed to extract token from login response"
   exit 1
 fi
-echo "$LOGIN_RESPONSE" | jq .
+# Never print bearer tokens to terminal or CI output.
+echo "$LOGIN_RESPONSE" | jq '{ok, token_present: (.token != null)}'
 echo ""
 
 # 4. Submit GSP Receipt

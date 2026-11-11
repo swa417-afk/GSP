@@ -9,12 +9,23 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT || 4000);
 const DB_PATH = process.env.DB_PATH || "./gsp.sqlite";
-const JWT_SECRET = process.env.JWT_SECRET || "change-me";
+const JWT_SECRET = process.env.JWT_SECRET;
+// Refuse absent, short, or known public sample JWT signing keys.
+if (!JWT_SECRET || Buffer.byteLength(JWT_SECRET, "utf8") < 32 ||
+    JWT_SECRET === "your-super-secret-key-change-this" || JWT_SECRET === "change-me") {
+  throw new Error("Set JWT_SECRET to a unique random secret (at least 32 bytes).");
+}
+const GSP_HOST = process.env.GSP_HOST || "127.0.0.1";
+const GSP_ALLOWED_ORIGINS = (process.env.GSP_ALLOWED_ORIGINS || "http://localhost:5173")
+  .split(",").map(origin => origin.trim()).filter(Boolean);
 const APP_NAME = process.env.APP_NAME || "GSP Reference App";
 const ATTESTATION_MODE = process.env.ATTESTATION_MODE || "simulated";
 
 const app = express();
-app.use(cors());
+// Restrict browser origins. Bearer authentication is independently required.
+app.use(cors({
+  origin: (origin, callback) => callback(null, !origin || GSP_ALLOWED_ORIGINS.includes(origin))
+}));
 app.use(express.json({ limit: "1mb" }));
 
 /* SQLite init */
@@ -261,6 +272,6 @@ app.get("/api/gsp/receipts", requireAuth, (req, res) => {
   );
 });
 
-app.listen(PORT, () => {
-  console.log(`${APP_NAME} backend running on http://0.0.0.0:${PORT}`);
+app.listen(PORT, GSP_HOST, () => {
+  console.log(`${APP_NAME} backend running on http://${GSP_HOST}:${PORT}`);
 });

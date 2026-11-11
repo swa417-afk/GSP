@@ -34,7 +34,7 @@ class GSPGovernanceLogger:
     def log_event(self, event_type: str, payload: Dict[str, Any]):
         log_entry = {
             "event_id": str(uuid.uuid4()),
-            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "event_type": event_type,
             "payload": payload
         }
@@ -74,7 +74,7 @@ class ModelRegistry:
             "name": name,
             "version": version,
             "approved": approved,
-            "registered_at": datetime.datetime.now(datetime.UTC).isoformat()
+            "registered_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
         return model_id
 
