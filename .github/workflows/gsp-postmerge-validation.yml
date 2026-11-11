@@ -1,0 +1,81 @@
+name: GSP post-merge validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-regressions:
+    name: Python ${{ matrix.python-version }} governance regression
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile governance and ledger modules
+        run: python -m compileall -q himmu_backup.py data_ops.py pipeline_replay.py pipeline_serialization.py pipeline_types.py glass_substrate_demo/gsp_core glass_substrate_demo/main.py
+      - name: Run credential and runtime regression tests
+        run: python -m unittest discover -s tests -p 'test_gsp_*.py' -v
+      - name: Verify indexed demonstration ledger
+        run: |
+          PYTHONPATH=glass_substrate_demo python - <<'PY'
+          from gsp_core import verify_file
+          status = verify_file("glass_substrate_demo/data/sample_events.json")
+          assert status["ok"], status
+          print("Seeded indexed GSP ledger verified:", status["count"], "entries")
+          PY
+
+  node-regressions:
+    name: Node backend startup, HTTP smoke, and dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate JavaScript syntax and package manifest
+        run: |
+          node --check server.js
+          node -e 'const p = require("./package.json"); if (p.scripts.start !== "node server.js" || !p.dependencies.express || !p.dependencies.sqlite3) process.exit(1)'
+      - name: Install declared backend dependencies
+        run: npm install --no-fund --no-audit
+      - name: Check absence of unsafe default JWT credentials
+        run: |
+          if env -u JWT_SECRET node server.js 2> "$RUNNER_TEMP/startup.err"; then
+            echo "ERROR: Backend started without JWT_SECRET"
+            exit 1
+          fi
+          grep -q "Set JWT_SECRET" "$RUNNER_TEMP/startup.err"
+          if JWT_SECRET=your-super-secret-key-change-this node server.js 2> "$RUNNER_TEMP/sample.err"; then
+            echo "ERROR: Backend accepted public JWT placeholder"
+            exit 1
+          fi
+          grep -q "Set JWT_SECRET" "$RUNNER_TEMP/sample.err"
+      - name: Exercise HTTP registration and receipts (ephemeral credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GSP_HOST=127.0.0.1
+          export DB_PATH="$RUNNER_TEMP/gsp_validation.sqlite"
+          export JWT_SECRET
+          JWT_SECRET="$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')"
+          node server.js > "$RUNNER_TEMP/backend.log" 2>&1 &
+          backend_pid=$!
+          trap 'kill "$backend_pid" 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4000/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4000/health > /dev/null
+          bash test_api.sh
+      - name: Report production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
