@@ -5,13 +5,13 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from .storage import Storage
-from .verification import Verification
 
 
 class Engine:
     """Coordinates record creation and persistence for the demo ledger."""
 
     def __init__(self, storage: Storage | None = None, verifier: Verification | None = None) -> None:
+        from .verification import Verification  # delayed to preserve both ledger APIs
         self.storage = storage or Storage()
         self.verifier = verifier or Verification()
 
@@ -56,3 +56,52 @@ class Engine:
         records = self.list_records()
         status, issues = self.verifier.verify_chain(records)
         return {"ok": status, "issues": issues, "count": len(records)}
+
+# Compatibility helpers for the original indexed, SHA-256 chained GSP event ledger.
+# The Engine/Storage/Verification record_hash-format demonstration is preserved.
+import hashlib
+import json
+from .storage import DEFAULT_DATA_PATH, load_entries, save_entries, append_entry
+
+
+def compute_hash(entry: Dict[str, Any]) -> str:
+    fields = ("index", "timestamp", "actor", "action", "payload", "prev_hash")
+    body = {key: entry.get(key) for key in fields}
+    serialized = json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def ensure_genesis(path: str = str(DEFAULT_DATA_PATH)) -> List[Dict[str, Any]]:
+    entries = load_entries(path)
+    if entries:
+        return entries
+    genesis = {
+        "index": 0,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "actor": "system",
+        "action": "init-ledger",
+        "payload": {"note": "Genesis event for GSP log"},
+        "prev_hash": None,
+    }
+    genesis["hash"] = compute_hash(genesis)
+    save_entries([genesis], path)
+    return [genesis]
+
+
+def record_event(actor: str, action: str, payload=None, path: str = str(DEFAULT_DATA_PATH)) -> Dict[str, Any]:
+    entries = ensure_genesis(path)
+    from .verification import verify_entries
+    if not verify_entries(entries)["ok"]:
+        raise ValueError("GSP ledger integrity check failed; refusing append")
+    previous = entries[-1]
+    record = {
+        "index": previous["index"] + 1,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "actor": actor,
+        "action": action,
+        "payload": payload or {},
+        "prev_hash": previous["hash"],
+    }
+    record["hash"] = compute_hash(record)
+    append_entry(record, path)
+    return record

@@ -43,7 +43,15 @@ class ReplayEngine:
         for step_name in trace.steps_applied:
             fn = self.step_registry.get(step_name)
             if fn is None:
-                continue
+                return ReplayResult(
+                    success=False,
+                    divergence={
+                        "reason": "unknown_step",
+                        "step": step_name,
+                        "steps_applied": trace.steps_applied,
+                        "recomputed_steps": recomputed_steps,
+                    },
+                )
 
             current = fn(current)
             recomputed_steps.append(step_name)

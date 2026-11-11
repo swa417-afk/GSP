@@ -68,7 +68,10 @@ class PipelineSerializer:
         data = json.loads(payload)
         steps = data.get("steps", [])
 
-        return [STEP_REGISTRY[name] for name in steps if name in STEP_REGISTRY]
+        unknown = [name for name in steps if name not in STEP_REGISTRY]
+        if unknown:
+            raise ValueError(f"Unknown pipeline steps: {unknown}")
+        return [STEP_REGISTRY[name] for name in steps]
 
 
 # -----------------------------
@@ -90,7 +93,7 @@ def build_execution_trace(
     for name in steps:
         fn = STEP_REGISTRY.get(name)
         if fn is None:
-            continue
+            raise ValueError(f"Unknown pipeline step: {name}")
 
         current = fn(current)
         applied.append(name)
