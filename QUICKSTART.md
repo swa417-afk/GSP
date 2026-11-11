@@ -26,12 +26,12 @@ cd ..
 
 ## 2. Configure Environment
 
-The `.env` file is already configured with defaults:
+Create a local `.env` from `.env.example` (never commit it), then set a new random `JWT_SECRET`:
 
 ```env
 PORT=4000
 DB_PATH=./gsp.sqlite
-JWT_SECRET=your-super-secret-key-change-this
+JWT_SECRET=<unique-random-secret-at-least-32-bytes>
 APP_NAME=GSP Reference App
 ATTESTATION_MODE=simulated
 ```

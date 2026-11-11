@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
 
 # Python
 __pycache__/
@@ -12,8 +10,10 @@ __pycache__/
 *.sqlite
 *.db
 
-# Environment variables
+# Environment variables (untracked local secrets)
 .env
+.env.*
+!.env.example
 
 # Build artifacts
 dist/
